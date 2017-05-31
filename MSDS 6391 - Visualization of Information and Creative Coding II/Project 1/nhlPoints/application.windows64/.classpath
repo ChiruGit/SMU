@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="source"/>
+	<classpathentry kind="lib" path="java/lib/charsets.jar"/>
+	<classpathentry kind="lib" path="java/lib/deploy.jar"/>
+	<classpathentry kind="lib" path="java/lib/ext/access-bridge-64.jar"/>
+	<classpathentry kind="lib" path="java/lib/ext/cldrdata.jar"/>
+	<classpathentry kind="lib" path="java/lib/ext/jaccess.jar"/>
+	<classpathentry kind="lib" path="java/lib/ext/jfxrt.jar"/>
+	<classpathentry kind="lib" path="java/lib/ext/localedata.jar"/>
+	<classpathentry kind="lib" path="java/lib/ext/nashorn.jar"/>
+	<classpathentry kind="lib" path="java/lib/ext/sunec.jar"/>
+	<classpathentry kind="lib" path="java/lib/ext/sunjce_provider.jar"/>
+	<classpathentry kind="lib" path="java/lib/ext/sunmscapi.jar"/>
+	<classpathentry kind="lib" path="java/lib/ext/sunpkcs11.jar"/>
+	<classpathentry kind="lib" path="java/lib/ext/zipfs.jar"/>
+	<classpathentry kind="lib" path="java/lib/jce.jar"/>
+	<classpathentry kind="lib" path="java/lib/jfr.jar"/>
+	<classpathentry kind="lib" path="java/lib/jfxswt.jar"/>
+	<classpathentry kind="lib" path="java/lib/jsse.jar"/>
+	<classpathentry kind="lib" path="java/lib/management-agent.jar"/>
+	<classpathentry kind="lib" path="java/lib/plugin.jar"/>
+	<classpathentry kind="lib" path="java/lib/resources.jar"/>
+	<classpathentry kind="lib" path="java/lib/rt.jar"/>
+	<classpathentry kind="lib" path="java/lib/security/local_policy.jar"/>
+	<classpathentry kind="lib" path="java/lib/security/US_export_policy.jar"/>
+	<classpathentry kind="lib" path="lib/core.jar"/>
+	<classpathentry kind="lib" path="lib/gluegen-rt-natives-windows-amd64.jar"/>
+	<classpathentry kind="lib" path="lib/gluegen-rt.jar"/>
+	<classpathentry kind="lib" path="lib/jogl-all-natives-windows-amd64.jar"/>
+	<classpathentry kind="lib" path="lib/jogl-all.jar"/>
+	<classpathentry kind="lib" path="lib/nhlPoints.jar"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>
