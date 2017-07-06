@@ -1,0 +1,447 @@
+---
+title: "Unit 8 Case Study - Modeling Runners' Times in the Cherry Blossom Race"
+author: Zach Brown
+date: July 5, 2017
+output: html_notebook
+---
+
+# Abstract  
+In order for most data analysis to be viable, the data set in question usually must be cleaned and formatted first.  This point can be especially clear in web scraped data that generally comes in the form of raw character strings.  In this case study, we examine web scraped data files containing women's race results from the annual Cherry Blossom Ten Mile Run for the years 1999 through 2012.  The variables were systematically extracted from the raw text files in an iterative process as new issues presented themselves.  Once cleaned, the data was combined into a dataframe that can easily be used in further analysis.
+
+# Introduction
+Data cleaning is a very important step in the data science process.  In the modern age of big data, it is very rare to find a dataset that is in a state that is conducive to effective analysis without any pre-work.  It is not uncommon for a raw data set to have missing values, formatting errors disparate layouts, and a host of other issues that need to be dealt with.  
+
+Web scraping can introduce even more issues that need to be cleaned before a data set can be worked with.  When scraping data from a website, it is not necessarily returned in an easy to work with format such as a table or JSON array.  The data could simply be a large string of characters.  This is the case in the data set being utilized in this case study.  
+
+The data set in this case study contains the race times for female runners in the Cherry Blossom Ten Mile Run held in Washington DC.  The data is from 1999 through 2012 and was obtained from www.cherryblossom.org and www.coolrunning.com.  The data comes in the form of text files.  There is one text file for each year.  These files contains variables such as name, hometown, age, gun time, and net time.  Not all files adhere to the same format or contain the same set of variables.  
+
+In Chapter 2 of "Data Science in R: A Case Studies Approach to Computational Reasoning and Problem Solving" (Nolan and Lang) the men's Cherry Blossom Race results for these same years is cleaned.  The objective of this case study is to answer Question 7 in that chapter.  This entails performing a similar data cleaning process for the women's race results data, dealing with any oddities that may present themselves in the raw data files, and constructing a dataframe that lends itself easily to analysis.  The code in this case study is based on the code in the Nolan and Lang book.  
+  
+
+# Methods and Results  
+The text files containing race data are not formatted the same way from year to year.  Some years have additional columns and the headers differ from year to year.  We will need to develop a way to programatically determine where the data begins and what columns each file contains.  We will start by reading in one of the files and looking at the first 10 rows to see what it looks like.
+```{r}
+els = readLines("WomenTxt/2012.txt")
+els[1:10]
+```
+
+We will also read in the 2011 file to compare it with with 2012.
+```{r}
+els2011 = readLines("WomenTxt/2011.txt")
+els2011[1:10]
+```
+Comparing these two files, we can see that they both contain similar headers.  The column names are separated from the data by a row of equal signs.  The equal signs have a space in between them where a new column begins.  We can also see an example of different years containing different columns, as 2011 contains a "Net Tim" column, but 2012 does not.  
+
+We will now begin to determine how to write a function that can read in all of the files and account for their differences.  The first step is to determine where the line containing the equals signs is in the file.  This can be accomplished using the grep command and searching for a string of 3 equals signs at the beginning of a line.
+```{r}
+eqIndex = grep("^===", els)
+eqIndex
+```
+In the 2012 women's data, the line containing the equals signs is on line 7.  With this information, the column headers can be extracted from the previous row and the data can be pulled from the rows following this row.
+```{r}
+spacerRow = els[eqIndex]
+headerRow = els[eqIndex - 1]
+body = els[ -(1:eqIndex) ]
+```
+In order to make the header row easier to parse, we will convert the column names to lower case format.
+```{r}
+headerRow = tolower(headerRow)
+```
+Each column will need to be extracted individually.  In order to determine how to do this, we will begin with the age column.  We will attempt to locate the age data by finding the starting position of the age column in the header row.
+```{r}
+ageStart = regexpr("ag", headerRow)
+ageStart
+```
+The "ag" column name in the header row begins in position 49.  We will attempt to pull the ages of runners by taking positions 49 and 50 of the data.
+```{r}
+age = substr(body, start = ageStart, stop = ageStart + 1)
+head(age)
+summary(as.numeric(age))
+```
+This appears to have worked.  The youngest female runner in 2012 was 12 and the oldest was 75.  There are also no null values, which is a positive sign.  
+Since the column widths can change from year to year, an easier method for determining where columns begin and end is to search for the breaks in the spacer row. This can be done using a global regular expression.
+```{r}
+blankLocs = gregexpr(" ", spacerRow)
+blankLocs
+```
+This returns the locations of all of the spaces in the row of equals signs, but since there is not a space at the beginning of the row, a 0 can be appended to the output to specify the starting position of the first column.
+```{r}
+searchLocs = c(0, blankLocs[[1]])
+searchLocs
+```
+The locations in the searchLocs variable can now be used to extract all of the values from the data with the substr function.
+```{r}
+Values = mapply(substr, list(body),
+                start = searchLocs[ -length(searchLocs)] + 1,
+                stop = searchLocs[ -1 ] - 1)
+```
+This logic can now be encapsulated in a function to make it easier to run on all of the text files.  In this function, we will add additional logic to deal with cases where the last character in a row is not a blank space.
+```{r}
+findColLocs = function(spacerRow) {
+  spaceLocs = gregexpr(" ", spacerRow)[[1]]
+  rowLength = nchar(spacerRow)
+  
+  if (substring(spacerRow, rowLength, rowLength) != " ")
+    return( c(0, spaceLocs, rowLength + 1))
+  else return(c(0, spaceLocs))
+}
+```
+The data contains lots of columns, but they are not all necessary.  We will right a function to select only the name, age, hometown, gun time, net time and time columns
+```{r}
+selectCols =
+  function(colNames, headerRow, searchLocs)
+  {
+    sapply(colNames,
+           function(name, headerRow, searchLocs)
+           {
+             startPos = regexpr(name, headerRow)[[1]]
+             if (startPos == -1)
+               return( c(NA, NA) )
+             
+             index = sum(startPos >= searchLocs)
+             c(searchLocs[index] + 1, searchLocs[index + 1] - 1)
+           },
+           headerRow = headerRow, searchLocs = searchLocs )
+  }
+```
+We can test this function by searching for the age column.
+```{r}
+searchLocs = findColLocs(spacerRow)
+ageLoc = selectCols("ag", headerRow, searchLocs)
+ages = mapply(substr, list(body),
+              start = ageLoc[1,], stop = ageLoc[2, ])
+
+summary(as.numeric(ages))
+```
+The summary statistics using this new function match the more manual extraction method that was used earlier.  This will make it easier to clean up all of the files instead of just the 2012 data.  
+Next, the disparity in column names from file will need to be accounted for.  The column names vary from file to file, so we will create a list of the first few characters of each of the desired columns.
+```{r}
+shortColNames = c("name", "home", "ag", "gun", "net", "time")
+```
+Since some columns are not present in some files, this will need to be accounted for by setting the values for those missing columns to NA.
+```{r}
+locCols = selectCols(shortColNames, headerRow, searchLocs)
+
+Values = mapply(substr, list(body), start = locCols[1, ],
+                stop = locCols[2, ])
+
+class(Values)
+```
+This results in a matrix of strings.  Now we will take a closer look at this data to see what it looks like.
+```{r}
+colnames(Values) = shortColNames
+head(Values)
+```
+Since the 2012 data contains a time column, but no gun time or net time columns, the time column is populated and the other two columns contain all NA values.  
+All of these helper functions can now be wrapped up into a larger function that can be used to extract the column data from all of the data files.
+```{r}
+extractVariables = 
+  function(file, varNames =c("name", "home", "ag", "gun",
+                             "net", "time"))
+{
+       # Find the index of the row with =s
+  eqIndex = grep("^===", file)
+       # Extract the two key rows and the data
+  spacerRow = file[eqIndex] 
+  headerRow = tolower(file[ eqIndex - 1 ])
+  body = file[ -(1 : eqIndex) ]
+       
+       # Obtain the starting and ending positions of variables
+  searchLocs = findColLocs(spacerRow)
+  locCols = selectCols(varNames, headerRow, searchLocs)
+
+  Values = mapply(substr, list(body), start = locCols[1, ], 
+                  stop = locCols[2, ])
+  colnames(Values) = varNames
+  
+  invisible(Values)
+}
+```
+This function accepts a character vector as an argument, not an actual file.  So in order for the files to be parsed, they will first need to be loaded into R.
+```{r}
+wfilenames = paste("WomenTxt/", 1999:2012, ".txt", sep = "")
+womenFiles = lapply(wfilenames, readLines)
+names(womenFiles) = 1999:2012
+```
+Now that the files have been read, the extractVariables function can be run to pull out all of the desired variables.
+```{r}
+womenResMat = lapply(womenFiles, extractVariables)
+length(womenResMat)
+```
+This results in an error.  Upon closer inspection of the data files, we can see that the 2001 women's file is missing the header and spacer rows.
+```{r}
+womenFiles[['2001']][1:15]
+```
+The header and spacer lines are present in the men's 2001 file though.
+```{r}
+men2001 = readLines("MenTxt/2001.txt")
+men2001[1:15]
+```
+We can take these rows from the men's file and add them to the women's file and then try to read in the women's files again.
+```{r}
+womenFiles[['2001']][9:10] = men2001[12:13]
+womenFiles[['2001']][1:15]
+```
+
+```{r}
+womenResMat = lapply(womenFiles, extractVariables)
+length(womenResMat)
+```
+```{r}
+sapply(womenResMat, nrow)
+```
+Now, the files have been read in successfully and the number of rows in each year looks reasonable.  With the data read into R, we can now convert the convert them into a format that lends itself to analysis more easily and perform more data cleaning as necessary.  To do this, we will convert the character matrix into a dataframe and then convert each column to a data type that makes sense for each respective variable.  We will start by converting the age column from the 2012 data to numeric values and checking its validity.
+```{r}
+age = as.numeric(womenResMat[['2012']][ , 'ag'])
+tail(age)
+```
+This small subset of ages look correct, but further investigation is needed.  The summary of each year's ages can be generated using the sapply function.
+```{r}
+age = sapply(womenResMat,
+             function(x) as.numeric(x[ , 'ag']))
+```
+There are some invalid age values that will need to be tracked down.  We will use a boxplot to visualize the ages in each year to see if any of the years look anomalous.
+```{r}
+boxplot(age, ylab = "Age", xlab = "Year")
+```
+######Figure 1 - Distribution of Age by Year  
+Figure 1 illustrates that there is something clearly wrong with the age column for both 2000 and 2003, as every runner has an age under 10.  The 2006 and 2007 data also looks extremely skewed, so these years will need to be investigated as well.
+```{r}
+womenFiles[['2000']][1:15]
+womenFiles[['2003']][1:15]
+```
+We can see that in the 2000 data the ages are all shifted one space to the left and in the 2003 data the ages are shifted one space to the right.  This is what is causing the erroneous values, as only one of the two digits is being read in as the age.  We will modify the selectCols function to include the value in the space between columns and check the age values again.
+```{r}
+selectCols = function(shortColNames, headerRow, searchLocs) {
+  sapply(shortColNames, function(shortName, headerRow, searchLocs){
+    startPos = regexpr(shortName, headerRow)[[1]]
+    if (startPos == -1) return( c(NA, NA) )
+    index = sum(startPos >= searchLocs)
+    c(searchLocs[index] + 1, searchLocs[index + 1])
+  }, headerRow = headerRow, searchLocs = searchLocs )
+}
+
+womenResMat = lapply(womenFiles, extractVariables)
+
+age = sapply(womenResMat, 
+             function(x) as.numeric(x[ , 'ag']))
+
+boxplot(age, ylab = "Age", xlab = "Year")
+```
+######Figure 2 - Distribution of Age by Year after initial cleanup  
+This appears to have fixed most of the age values for all years except 2000, as can be seen in Figure 2.  The 2000 data no longer contains any age values.  This is due to the fact that the values are all shifted to the left by one space, but our previous function modifications accounted for a shift to the right.  Since this is the only file that is shifted to the right, we can paste a space at the beginning of each of the data rows in the 2000 data to shift it one space to the right and align the columns with the column headers and space breaks.
+
+```{r}
+womenFiles[['2000']][-(1:11)] = paste("", womenFiles[['2000']][-(1:11)])
+```
+```{r}
+womenFiles[['2000']][1:20]
+```
+Now we will replot the data again.
+```{r}
+selectCols = function(shortColNames, headerRow, searchLocs) {
+  sapply(shortColNames, function(shortName, headerRow, searchLocs){
+    startPos = regexpr(shortName, headerRow)[[1]]
+    if (startPos == -1) return( c(NA, NA) )
+    index = sum(startPos >= searchLocs)
+    c(searchLocs[index] + 1, searchLocs[index + 1])
+  }, headerRow = headerRow, searchLocs = searchLocs )
+}
+
+womenResMat = lapply(womenFiles, extractVariables)
+
+age = sapply(womenResMat, 
+             function(x) as.numeric(x[ , 'ag']))
+
+boxplot(age, ylab = "Age", xlab = "Year")
+```
+######Figure 3 - Distribution of Age by Year after additional cleanup  
+Shifting the 2000 data one space to the right seems to have solved the issue judging by the results in Figure 3.  However, when converting the age data to numeric values, several warning messages about NA values were thrown.  We will investigate that next.
+```{r}
+sapply(age, function(x) sum(is.na(x)))
+```
+Most years have at least one NA value for age.  2005 has the most with 11 NA values.  We'll take a closer look at that year.  First, we will create a vector containing just the age data from that year.
+```{r}
+age2005 = age[["2005"]]
+```
+Next we can look at the rows in the original file where the age is NA.  Since the header of the file was dropped when creating the age variable, we will need to add an offset for the number of lines that were dropped.
+```{r}
+grep("^===", womenFiles[['2005']])
+```
+The offset is 7 rows.
+```{r}
+badAgeIndex = which(is.na(age2005)) + 7
+womenFiles[['2005']][ badAgeIndex ]
+```
+Some of these rows just don't have values for the age field, but there are also some rows that are blank or contain footnotes.  We can modify the extractVariables function to remove these rows.
+```{r}
+extractVariables = 
+function(file, varNames =c("name", "home", "ag", "gun",
+                           "net", "time"))
+{
+  
+  # Find the index of the row with =s
+  eqIndex = grep("^===", file)
+  # Extract the two key rows and the data 
+  spacerRow = file[eqIndex] 
+  headerRow = tolower(file[ eqIndex - 1 ])
+  body = file[ -(1 : eqIndex) ]
+       # Remove footnotes and blank rows
+  footnotes = grep("^[[:blank:]]*(\\*|\\#)", body)
+  if ( length(footnotes) > 0 ) body = body[ -footnotes ]
+  blanks = grep("^[[:blank:]]*$", body)
+  if (length(blanks) > 0 ) body = body[ -blanks ]
+  
+  
+  # Obtain the starting and ending positions of variables   
+  searchLocs = findColLocs(spacerRow)
+  locCols = selectCols(varNames, headerRow, searchLocs)
+  
+  Values = mapply(substr, list(body), start = locCols[1, ], 
+                  stop = locCols[2, ])
+  colnames(Values) = varNames
+  
+  return(Values)
+}
+
+womenResMat = lapply(womenFiles, extractVariables)
+
+age = sapply(womenResMat, 
+             function(x) as.numeric(x[ , 'ag']))
+```
+```{r}
+sapply(age, function(x) sum(is.na(x)))
+```
+Removing blank lines and footers seems to have cleared up a lot of the NA values.  
+
+In the last boxplot, there was an age value in 2001 that looked extremely low.  We can investigate this further by searching for values under 5, since we would not expect any runners that young to be entered in the race.
+```{r}
+sapply(age, function(x) which(x < 5))
+```
+```{r}
+age$`2001`[2611]
+```
+There is an entry in 2001 with an age listed at 0.  This can be dealt with later on in the analysis process, possibly using some sort of multiple imputation method.  
+Now that the age variable is in decent shape, we will clean up the race times.  One challenge is that the race times are not all in the same format.  Since some runners finished in under an hour, their times only have minutes and seconds.  Other runners' times have hours, minutes, and seconds.  We will convert all times to minutes.  To begin, we will start with one year as we did with the age variable.
+```{r}
+charTime = womenResMat[['2012']][, 'time']
+head(charTime, 5)
+tail(charTime, 5)
+```
+First, the times need to be split into their component pieces.
+```{r}
+timePieces = strsplit(charTime, ":")
+timePieces[[1]]
+tail(timePieces, 1)
+```
+The component pieces of the times can now be converted to numeric values and combined into minutes.
+```{r}
+timePieces = sapply(timePieces, as.numeric)
+
+runTime = sapply(timePieces,
+                 function(x) {
+                   if (length(x) == 2) x[1] + x[2]/60
+                   else 60*x[1] + x[2] + x[3]/60
+                 })
+
+summary(runTime)
+```
+These values apppear to be correct.  The fastest female runner in 2012 finished in just over 54 minutes, while the slowest runner finished in just under 3 hours.  Now this logic can be encapsulated in a function.
+```{r}
+convertTime = function(time) {
+  timePieces = strsplit(time, ":")
+  timePieces = sapply(timePieces, as.numeric)
+  sapply(timePieces, function(x) {
+                      if (length(x) == 2) x[1] + x[2]/60
+                      else 60*x[1] + x[2] + x[3]/60
+                      })
+}
+```
+Now, a function can be created to create dataframes from this data.  This function will also add columns for year and sex (in case we want to merge this data with the men's results).  We will also need to boil the three time columns down to one.  If a record contains both gun time and net time, net time is preferable.
+```{r}
+createDF = function(Res, year, sex) {
+  # Determine which time to use
+  useTime = if( !is.na(Res[1, 'net']) )
+    Res[ , 'net']
+  else if( !is.na(Res[1, 'gun']) )
+    Res[ , 'gun']
+  else
+    Res[ , 'time']
+  
+  runTime = convertTime(useTime)
+  
+  Results = data.frame(year = rep(year, nrow(Res)),
+                       sex = rep(sex, nrow(Res)),
+                       name = Res[ , 'name'],
+                       home = Res[ , 'home'],
+                       age = as.numeric(Res[, 'ag']),
+                       runTime = runTime,
+                       stringsAsFactors = FALSE)
+  invisible(Results)
+}
+```
+This new function can be used to turn the women's race results data into dataframes.
+```{r}
+womenDF = mapply(createDF, womenResMat, year = 1999:2012,
+                 sex = rep("W", 14), SIMPLIFY = FALSE)
+```
+This produces a lot of NA warnings.  We can examine the data further to see if they are all related to NA age values that are expected or if there is another issue that needs to be addressed.
+```{r}
+sapply(womenDF, function(x) sum(is.na(x$runTime)))
+```
+There appear to be a lot of null run time values for 2004, 2005, 2006, 2007, 2009, and 2010.  Some of these NA values are due to records that do not contain a run time.  There are also run time values that have a footnote appended to them (either a # or * symbol).  We can modify the createDF function to remove records with null run times and also to strip off the special characters from footnoted runtimes.
+```{r}
+createDF = function(Res, year, sex) 
+{
+  # Determine which time to use
+  if ( !is.na(Res[1, 'net']) ) useTime = Res[ , 'net']
+  else if ( !is.na(Res[1, 'gun']) ) useTime = Res[ , 'gun']
+  else useTime = Res[ , 'time']
+  
+  # Remove # and * and blanks from time
+  useTime = gsub("[#\\*[:blank:]]", "", useTime)
+  runTime = convertTime(useTime[ useTime != "" ])
+  
+  # Drop rows with no time
+  Res = Res[ useTime != "", ]
+  
+  Results = data.frame(year = rep(year, nrow(Res)),
+                       sex = rep(sex, nrow(Res)),
+                       name = Res[ , 'name'], home = Res[ , 'home'],
+                       age = as.numeric(Res[, 'ag']), 
+                       runTime = runTime,
+                       stringsAsFactors = FALSE)
+  invisible(Results)
+}
+```
+Now we will reconstruct the dataframes and recheck the number of null runtime values.
+```{r}
+womenDF = mapply(createDF, womenResMat, year = 1999:2012,
+                 sex = rep("W", 14), SIMPLIFY = FALSE)
+```
+```{r}
+sapply(womenDF, function(x) sum(is.na(x$runTime)))
+```
+These changes have resolved all of the issues with null runtimes in the data.  
+We can now combine all of the dataframes into one.
+```{r}
+cbWomen = do.call(rbind, womenDF)
+save(cbWomen, file = "cbWomen.rda")
+```
+```{r}
+dim(cbWomen)
+summary(cbWomen)
+```
+We now have a dataframe containing six columns (year, sex, name, home, age, and runtime) with 75967 records.
+
+# Conclusions and Future Work
+In most real world scenarios, before any sort of data analysis can be performed, the data must first be cleaned and formatted properly.  This can sometimes take more time than the actual analysis process.  Real world data sets are almost never presented to a data scientist in a perfect state and can present a myriad of challenges that must be overcome.  
+
+In this case study, we cleaned the women's race results data files from the Cherry Blossom Ten Mile Run for the years 1999 through 2012.  The men's race results data had already been cleaned in Chapter 2 of "Data Science in R: A Case Studies Approach to Computational Reasoning and Problem Solving" (Nolan and Lang), but we observed that even congruent data sets can present different hurdles from one another.  For example in the women's data, there was a file with no header rows and there was also a file where all of the data was shifted to the left.  Neither of these problems were present in the men's data for the same years.  The data was cleaned and formatted into a dataframe for use in further analysis by creating functions that can be easily reused.  This is the preferred method of cleaning data, as the data cleaning process can be very tedious, but some of this tediousness can be alleviated by well written code.  
+
+The objective of this case study was simply to follow a similar cleaning process as outlined in the Nolan and Lang book and to convert the cleaned data into a dataframe that can be used in further analysis.  One area of future work is obviously to analyze the data now that it has been cleaned and prepared.  There are also opportunities to further clean the data.  For example, there were several instances where the age variable was either 0 or blank.  In this case study, these values were not altered, because depending on the type of analysis to be done the original values could be desirable.  However, there is an opportunity to deal with these anomalous values through methods such as multiple imputation.
+
+# References
+- Lang, D. T., & Nolan, D. A. (2015). Data Science in R: A Case Studies Approach to Computational Reasoning and Problem Solving. CRC Press.  
+- Race Results. (n.d.). Retrieved June 30, 2017, from http://cherryblossom.org/aboutus/results.php  
+- Running Races & Events, Race Calendar & Race Results (n.d.). Retrieved June 30, 2017, from http://www.coolrunning.com/engine/1/index.shtml
