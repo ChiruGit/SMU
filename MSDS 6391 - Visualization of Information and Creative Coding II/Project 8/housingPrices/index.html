@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+
+<!--
+Zach Brown
+MSDS 6391 - Visualization of Information and Creative Coding II
+Week 9 Project
+
+References:
+    http://duspviz.mit.edu/d3-workshop/mapping-data-with-d3/
+    http://bl.ocks.org/michellechandra/0b2ce4923dc9b5809922
+    https://www.redfin.com/blog/data-center
+    http://learnjsdata.com/combine_data.html
+-->
+
+<html>
+<meta charset="utf-8">
+<head>
+    <title>Boston Housing Prices</title>
+    <script src="http://d3js.org/d3.v4.min.js" charset="utf-8"></script>
+    <script src="Data/boston_neighborhoods.json"></script>
+    <script src="Data/boston_real_estate__neighborhood_may2017.json"></script>
+
+    <style>
+    .toolTip {
+        position: absolute;
+        text-align: center;
+        width: auto;
+        height: auto;
+        background: white;
+        border: 0px;
+        border-radius: 8px;
+        padding: 5px;
+        pointer-events: none;
+    }
+    </style>
+</head>
+
+<body>
+    <script>
+
+    // Dimensions of the visualization
+    var width = 700;
+    var height = 580;
+
+    // Create SVG
+    var svg = d3.select("body")
+        .append("svg")
+        .attr("width", width)
+        .attr("height", height);
+
+    // Append div element for tooltip to svg
+    var tooltip = d3.select("body")
+        .append("div")
+        .attr("class", "toolTip");
+
+    // Format dollar amounts
+    var format = d3.format("$,");
+ 
+    // Append g element to contain geometry elements
+    var g = svg.append("g");
+
+    // Set projection parameters
+    var albersProjection = d3.geoAlbers()
+        .scale(190000)
+        .rotate([71.057, 0])
+        .center([0, 42.313])
+        .translate([width/2, height/2]);
+
+    // Use D3's geoPath function to turn latitude and longitude
+    // into screen coordinates
+    var geoPath = d3.geoPath()
+        .projection(albersProjection);
+
+    // Pull median home price values into neighborhood JSON data
+    neighborhoods_json.features.forEach(function(neighborhood) {
+        var result = prices_json.features.filter(function(price) {
+            return price.properties.Neighborhood === neighborhood.properties.Name;
+        });
+        neighborhood.properties.MedianSalePrice = (result[0] !== undefined) ? result[0].properties.MedianSalePrice : null;
+    });
+
+    // Define color scale
+    var color = d3.scaleSequential(d3.interpolateRdYlGn);
+
+    // // Define fill colors for neighborhoods
+    // neighborhoods_json.features.forEach(function(neighborhood) {
+    //     if (neighborhood.properties.MedianSalePrice != null) {
+    //         neighborhood.properties.Color = color(neighborhood.properties.MedianSalePrice/2000000);
+    //     } else {
+    //         neighborhood.properties.Color = "#ccc";
+    //     };
+    //     console.log(neighborhood.properties.Color);
+    // });
+
+    // Bind location data and draw map
+    g.selectAll("path")
+        .data(neighborhoods_json.features)
+        .enter()
+        .append("path")
+        .attr("fill", "#ccc")
+        .attr("stroke", "#333")
+        .attr("d", geoPath)
+        .on("mouseover", handleMouseOver)
+        .on("mouseout", handleMouseOut);
+
+    // Create Event Handlers for mouse
+    function handleMouseOver(d, i) {  // Add interactivity
+
+        // Use D3 to select element, change color
+        d3.select(this)
+            .style("fill", "DarkBlue");
+
+        // Display tooltip with neighborhood and price info
+        tooltip
+            .style("left", (d3.event.pageX) + "px")     
+            .style("top", (d3.event.pageY - 28) + "px")    
+            .style("display", "inline-block")
+            .style("opacity", .8)
+            .html((d.properties.Name) + "<br>" + format(d.properties.MedianSalePrice));
+      }
+
+    function handleMouseOut(d, i) {
+        // Use D3 to select element, change color back to normal
+        d3.select(this)
+            .style("fill", "#ccc");
+
+        // Remove tooltip
+        tooltip.style("display", "none");
+      }
+    </script>
+</body>
+</html>
