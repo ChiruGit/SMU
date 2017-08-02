@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+
+<!--
+Zach Brown
+MSDS 6391 - Visualization of Information and Creative Coding II
+Week 13 Project
+8/1/2017
+-->
+
+<meta charset="utf-8">
+<meta name="viewport" content="initial-scale=1.0, user-scalable=no"/>
+<style>
+
+html, body, #map {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.incident, .incident svg {
+  position: absolute;
+}
+
+.incident svg {
+  width: 60px;
+  height: 20px;
+  padding-right: 100px;
+}
+
+.incident circle {
+  fill: red;
+  opacity: 0.1;
+}
+
+.toolTip {
+  position: absolute;
+  text-align: center;
+  width: auto;
+  height: auto;
+  background: white;
+  border: 0px;
+  border-radius: 8px;
+  padding: 5px;
+  pointer-events: none;
+}
+
+</style>
+<div id="map"></div>
+<script src="//maps.google.com/maps/api/js?key=AIzaSyAR2wa1sKVm_xvCU6P_ffgSDcU18fBrR20"></script>
+<script src="//d3js.org/d3.v4.min.js"></script>
+
+<script>
+
+// Create the Google Map…
+var map = new google.maps.Map(d3.select("#map").node(), {
+  zoom: 12,
+  center: new google.maps.LatLng(42.313, -71.057),
+  mapTypeId: google.maps.MapTypeId.TERRAIN
+});
+
+// // Append div element for tooltip
+// var tooltip = d3.select("body")
+//     .append("div")
+//     .attr("class", "toolTip");
+
+// Load the station data. When the data comes back, create an overlay.
+d3.json("Data/crime_july.json", function(error, data) {
+  if (error) throw error;
+
+  var overlay = new google.maps.OverlayView();
+
+  // Add the container when the overlay is added to the map.
+  overlay.onAdd = function() {
+    var layer = d3.select(this.getPanes().overlayLayer).append("div")
+        .attr("class", "incident");
+
+    // Draw each marker as a separate SVG element.
+    // We could use a single SVG, but what size would it have?
+    overlay.draw = function() {
+      var projection = this.getProjection(),
+          padding = 10;
+
+      var marker = layer.selectAll("svg")
+          .data(d3.entries(data))
+          .each(transform) // update existing markers
+        .enter().append("svg")
+          .each(transform)
+          .attr("class", "marker");
+
+      // Add a circle.
+      marker.append("circle")
+          .attr("r", 4)
+          .attr("cx", padding)
+          .attr("cy", padding);
+
+      function transform(d) {
+        d = new google.maps.LatLng(d.value["Lat"], d.value["Long"]);
+        d = projection.fromLatLngToDivPixel(d);
+        return d3.select(this)
+            .style("left", (d.x - padding) + "px")
+            .style("top", (d.y - padding) + "px");
+            // .on("mouseover", handleMouseOver)
+            // .on("mouseout", handleMouseOut);
+      }
+
+      // // Create Event Handlers for mouse
+      // function handleMouseOver(d) {
+      //   // Display tooltip with date and incident desciption
+      //   d3.select(this)
+      //   tooltip
+      //       .style("left", (d3.event.pageX) + "px")     
+      //       .style("top", (d3.event.pageY - 28) + "px")    
+      //       .style("display", "inline-block")
+      //       .style("opacity", .8)
+      //       .html((d.value["OCCURRED_ON_DATE"]) + "<br>" + d.value["OFFENSE_DESCRIPTION"]);
+      // }
+
+      // function handleMouseOut(d) {
+      //   // Remove tooltip
+      //   d3.select(this)
+      //   tooltip.style("display", "none");
+      // }
+
+    };
+  };
+
+  // Bind our overlay to the map
+  overlay.setMap(map);
+});
+
+</script>

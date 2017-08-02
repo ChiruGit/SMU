@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+
+<!--
+Zach Brown
+MSDS 6391 - Visualization of Information and Creative Coding II
+Week 11 Project
+
+References:
+    http://duspviz.mit.edu/d3-workshop/mapping-data-with-d3/
+    http://bl.ocks.org/michellechandra/0b2ce4923dc9b5809922
+    https://www.redfin.com/blog/data-center
+    http://learnjsdata.com/combine_data.html
+    https://bl.ocks.org/mbostock/899711
+    https://developers.google.com/maps/documentation/javascript/examples/overlay-simple
+    https://stackoverflow.com/questions/41873389/put-d3-map-over-google-maps
+-->
+
+<html>
+<meta charset="utf-8">
+<head>
+    <title>Boston Housing Prices</title>
+    <script src="http://d3js.org/d3.v4.js" charset="utf-8"></script>
+    <script src="//maps.google.com/maps/api/js?key=AIzaSyAR2wa1sKVm_xvCU6P_ffgSDcU18fBrR20"></script>
+    <script src="Data/boston_neighborhoods.json"></script>
+    <script src="Data/boston_real_estate__neighborhood_may2017.json"></script>
+
+    <style>
+    html, body, #map {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    .toolTip {
+        position: absolute;
+        text-align: center;
+        width: auto;
+        height: auto;
+        background: white;
+        border: 0px;
+        border-radius: 8px;
+        padding: 5px;
+        pointer-events: none;
+    }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+    <script>
+
+    // Create the Google Map…
+    var map = new google.maps.Map(d3.select("#map").node(), {
+      zoom: 12,
+      center: new google.maps.LatLng(42.313, -71.057),
+      mapTypeId: google.maps.MapTypeId.TERRAIN
+    });
+
+//     // Append div element for tooltip to svg
+//     var tooltip = d3.select("body")
+//         .append("div")
+//         .attr("class", "toolTip");
+
+//     // Format dollar amounts
+//     var format = d3.format("$,");
+ 
+    // Define color scale
+    var color = d3.scaleLinear()
+                    .range(['#f7fcf5','#e5f5e0','#c7e9c0','#a1d99b','#74c476','#41ab5d','#238b45','#006d2c','#00441b'])
+                    // .domain([
+                    //     0, d3.max(prices_json.features, function(d) {
+                    //         return d.MedianSalePrice; 
+                    //     })
+                    // ]);
+                    .domain([30000, 60000, 100000]);
+
+    // Pull median home price values into neighborhood JSON data
+    neighborhoods_json.features.forEach(function(neighborhood) {
+        var result = prices_json.features.filter(function(price) {
+            return price.properties.Neighborhood === neighborhood.properties.Name;
+        });
+        neighborhood.properties.MedianSalePrice = (result[0] !== undefined) ? result[0].properties.MedianSalePrice : null;
+    });
+
+    var overlay = new google.maps.OverlayView();
+
+    // Add the container when the overlay is added to the map
+    overlay.onAdd = function() {
+        var layer = d3.select(this.getPanes().overlayLayer).append("div");
+
+        // Draw the neighborhoods
+        overlay.draw = function() {
+
+          var overlayProjection = this.getProjection();
+
+          // Turn the overlay projection into a d3 projection
+          var googleMapProjection = function(coordinates) {
+            var googleCoordinates = new google.maps.LatLng(coordinates[1], coordinates[0]);
+            var pixelCoordinates = overlayProjection.fromLatLngToDivPixel(googleCoordinates);
+            return [pixelCoordinates.x, pixelCoordinates.y];
+          }
+
+            var geoPath = d3.geoPath().projection(googleMapProjection);
+
+            var svg = layer.append("svg")
+                .style("width", "100%")
+                .style("height", "100%");
+
+            var g = svg.append("g");
+
+            g.selectAll("path")
+                .data(neighborhoods_json.features)
+                .enter()
+                .append("path")
+                .attr("stroke", "#333")
+                .attr("d", geoPath)
+                .style("fill", function(d) {
+                    var value = d.properties.MedianSalePrice;
+                    if (value) {
+                        return color(value);
+                    } else {
+                        return "#ccc";
+                    }
+                });
+        }
+    }
+
+    overlay.setMap(map);
+    </script>
+</body>
+</html>
